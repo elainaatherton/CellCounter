@@ -1,0 +1,112 @@
+close all
+clear all
+
+%This code is meant for hand annotation of cell counts in 3D image stacks
+%If the images are taken with the Olympus confocal, the .oir file can be
+%opened in imageJ or FIJI using the Olympus plugin. The channels can then
+%be separated and saved as .gif files. 
+%Add the gif file to the current folder and write the 'file name' below as the Sample.
+Sample = 'Composite3';
+FileType = '.gif';
+File = strcat(Sample,FileType);
+%Use the cross hash to indicate the center of each cell
+% The radius of inclusion (r) around click should be tested based on the
+% microscope objective used and the consistency of the clicker.
+r=40
+%Define how many slices of the gif you'd like to look through
+slices = 10
+
+
+%clearing starting variable and matrices
+A = [];
+B = [];
+C = [];
+Markx = [];
+Marky = [];
+Markz = [];
+cellCount=0;
+Dotx = [];
+Doty = [];
+
+%hand mark the center of each live cell 
+for n = 1:slices
+    n = n
+    I = imread(File,n); %open image file
+    image(I); %show image as a figure
+    hold on;
+    plot(Dotx,Doty,'r*'); %plot the last click positions on the new slice
+    grid on; %turn the grid on overtop of the image
+    ax = gca; %open up the axes properties
+    ax.XTick = [100 200 300 400 500]; %set the x axis grid line positions
+    ax.YTick = [100 200 300 400 500]; %set the y axis grid line positions
+    ax.GridLineStyle = '-'; %set the grid style '-' solid line
+    ax.GridAlpha = 1; %set grid transparency range of [0:1] with 1 being totally solid
+    ax.LineWidth = 2; %set the line width - standard is 1.5
+    
+   
+    [x,y] = ginput; %click the center of each cell and press enter, this records the position of each click
+    if n == 1
+         [u,q] = size(x);
+         cellCount = cellCount + u; %Adds the first clicks to the cell count
+         Markx = cat(1,Markx,x);
+         Marky = cat(1,Marky,y);
+         Markz = cat(1,Markz,x.^0);
+    end
+  
+    
+    A = cat(1,A,x); %adds the x values to array A
+    B = cat(1,B,y); %adds the y values to array B
+    Dotx = (x);
+    Doty = (y);
+    hold on;
+    %plot(x,y, 'rd', 'MarkerSize', 10); %plot click marks over each image
+    x(:) = n; % changes each x value to the z value to create a z array of the same size
+    C = cat (1,C,x); %creates a z component for each point and adds it to array C
+end
+
+%calculates the number of cells based on clicks
+for n=2:slices
+ 
+   Z = C(:) == n; %creats index array for the current slice
+   P = C(:) == (n-1); %creats index array for previous slice
+   p1 = [A(Z) B(Z)]; %creates matrix of x,y points from current slice
+   [m,l]= size(p1); %defines current slice matrix size
+   p2 = [A(P) B(P)]; %creates matrix of x,y points from previous slize
+   [m2,l2] = size(p2); %defines previous slice matrix size
+   
+   %we will compare all the points from the current slice to all the points
+   %of the previous slice and calculate distance. If the distance between
+   %any of the points is less than r (defined at the top) then we know that
+   %cell was already counted in the previous slice, and will not be added
+   %to the cell count.
+   
+   for t = 1:m
+       d = [];
+       for s = 1:m2
+            d = cat(1,d,norm(p1(t,:)-p2(s,:)));
+          
+       end
+       if d(:) > r 
+            cellCount = cellCount + 1;
+            Markx = cat(1,Markx,p1(t,1));
+            Marky = cat(1,Marky,p1(t,2));
+            Markz = cat(1,Markz,n);
+       end
+      if m2 == 0 && m > 0
+       cellCount = cellCount + 1
+       Markx = cat(1,Markx,p1(t,1));
+       Marky = cat(1,Marky,p1(t,2));
+       Markz = cat(1,Markz,n);
+       end
+   end
+   
+end
+
+cellCount = cellCount %print cell count
+
+figure;
+stem3(A,B,C, 'filled', 'LineStyle','none'); %plots 3D figure of clicks
+hold on   
+stem3(Markx,Marky,Markz);   %marks the counted clicks on the 3D figure for validation of results
+    
+save(Sample);
